@@ -54,6 +54,13 @@ export const useStore = defineStore('main', {
       this.products = products
       this.salesData = salesData
       this.categoryData = categoryData
+      
+      // Initialize revenue data from sales data
+      this.revenueData = this.salesData.map(data => ({
+        date: data.date,
+        revenue: data.revenue
+      }))
+      this.revenueLabels = this.salesData.map(data => data.date)
     },
 
     async fetchProducts() {

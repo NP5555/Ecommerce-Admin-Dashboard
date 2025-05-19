@@ -70,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue'
 import { Chart, registerables } from 'chart.js'
 import { useStore } from '../store'
 import CategoryFilter from '../components/CategoryFilter.vue'
@@ -122,8 +122,33 @@ const aovGrowth = computed(() => {
   return Math.round(((currentAOV - previousAOV) / previousAOV) * 100)
 })
 
+// Ensure store is initialized
+onMounted(async () => {
+  await store.initializeStore()
+  initializeCharts()
+  store.startRealtimeUpdates()
+})
+
+// Clean up charts on component unmount
+onBeforeUnmount(() => {
+  if (revenueChartInstance) {
+    revenueChartInstance.destroy()
+  }
+  if (categoryChartInstance) {
+    categoryChartInstance.destroy()
+  }
+})
+
 // Chart initialization and updates
 const initializeCharts = () => {
+  // Destroy existing instances if they exist
+  if (revenueChartInstance) {
+    revenueChartInstance.destroy()
+  }
+  if (categoryChartInstance) {
+    categoryChartInstance.destroy()
+  }
+
   if (revenueChart.value && categoryChart.value) {
     // Revenue trend chart
     revenueChartInstance = new Chart(revenueChart.value, {
@@ -153,7 +178,7 @@ const initializeCharts = () => {
           y: {
             beginAtZero: true,
             ticks: {
-              callback: (value: string | number) => `$${formatCurrency(Number(value))}`
+              callback: (value) => `$${formatCurrency(Number(value))}`
             }
           }
         }
@@ -180,6 +205,10 @@ const initializeCharts = () => {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
+          legend: {
+            position: 'right',
+            align: 'center',
+          },
           tooltip: {
             callbacks: {
               label: (context) => `$${formatCurrency(context.raw as number)}`
@@ -191,30 +220,49 @@ const initializeCharts = () => {
   }
 }
 
-const generateRevenueDatasets = () => {
-  const datasets = []
+interface ChartDataset {
+  label: string;
+  data: number[];
+  borderColor: string;
+  backgroundColor: string;
+  tension: number;
+  fill: boolean;
+}
+
+const generateRevenueDatasets = (): ChartDataset[] => {
+  const datasets: ChartDataset[] = []
   const baseData = store.getRevenueData()
   
   if (selectedCategories.value.length === 0) {
-    datasets.push({
-      label: 'Total Revenue',
-      data: baseData,
-      borderColor: '#4F46E5',
-      tension: 0.4
+    // Show all categories with different colors
+    store.categoryData.forEach((category, index) => {
+      datasets.push({
+        label: category.name,
+        data: baseData.map(value => 
+          value * (category.revenue / store.categoryData.reduce((sum, c) => sum + c.revenue, 0))
+        ),
+        borderColor: getColorForIndex(index),
+        backgroundColor: getColorForIndex(index) + '20',
+        tension: 0.4,
+        fill: true
+      })
     })
   } else {
-    selectedCategories.value.forEach((category, index) => {
-      const categoryData = baseData.map(value => 
-        value * (store.categoryData.find(c => c.name === category)?.revenue || 0) / 
-        store.categoryData.reduce((sum, c) => sum + c.revenue, 0)
-      )
-      
-      datasets.push({
-        label: category,
-        data: categoryData,
-        borderColor: getColorForIndex(index),
-        tension: 0.4
-      })
+    // Show only selected categories
+    selectedCategories.value.forEach((categoryName, index) => {
+      const category = store.categoryData.find(c => c.name === categoryName)
+      if (category) {
+        datasets.push({
+          label: categoryName,
+          data: baseData.map(value => 
+            value * (category.revenue / store.categoryData.reduce((sum, c) => sum + c.revenue, 0))
+          ),
+          borderColor: getColorForIndex(index),
+          backgroundColor: getColorForIndex(index) + '20',
+          tension: 0.4,
+          fill: true
+        })
+      }
     })
   }
   
@@ -254,16 +302,8 @@ const changePeriod = (period: string) => {
   updateCharts()
 }
 
-// Watch for changes in selected categories
-watch(selectedCategories, () => {
+// Watch for changes that should trigger chart updates
+watch([selectedCategories, selectedPeriod], () => {
   updateCharts()
-})
-
-// Initialize charts on component mount
-onMounted(() => {
-  initializeCharts()
-  
-  // Start real-time updates
-  store.startRealtimeUpdates()
-})
+}, { deep: true })
 </script> 
