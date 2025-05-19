@@ -71,7 +71,7 @@
                 />
                 <div class="ml-4">
                   <div class="text-sm font-medium text-gray-900">{{ product.name }}</div>
-                  <div class="text-sm text-gray-500">{{ product.sku }}</div>
+                  <div v-if="product.sku" class="text-sm text-gray-500">{{ product.sku }}</div>
                 </div>
               </div>
             </td>
@@ -85,8 +85,8 @@
               <div
                 class="text-sm"
                 :class="{
-                  'text-red-600': product.stock <= product.lowStockThreshold,
-                  'text-green-600': product.stock > product.lowStockThreshold
+                  'text-red-600': product.stock <= (product.lowStockThreshold ?? 10),
+                  'text-green-600': product.stock > (product.lowStockThreshold ?? 10)
                 }"
               >
                 {{ product.stock }}
@@ -115,7 +115,7 @@
     </div>
 
     <!-- Update Stock Modal -->
-    <div v-if="showUpdateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div v-if="showUpdateModal && selectedProduct" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
       <div class="bg-white rounded-lg p-6 w-full max-w-md">
         <h2 class="text-xl font-bold mb-4">Update Stock</h2>
         <div class="mb-4">
@@ -144,7 +144,7 @@
     </div>
 
     <!-- Forecast Modal -->
-    <div v-if="showForecastModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div v-if="showForecastModal && selectedProduct" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
       <div class="bg-white rounded-lg p-6 w-full max-w-md">
         <h2 class="text-xl font-bold mb-4">Stock Forecast</h2>
         <div class="mb-4">
@@ -169,27 +169,28 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useStore } from '@/store'
+import type { Product, SortOrder, StockFilter } from '@/types'
 
 const store = useStore()
 
 // State
 const searchQuery = ref('')
 const categoryFilter = ref('')
-const stockFilter = ref('')
-const sortKey = ref('name')
-const sortOrder = ref('asc')
+const stockFilter = ref<StockFilter>('')
+const sortKey = ref<keyof Product>('name')
+const sortOrder = ref<SortOrder>('asc')
 const showUpdateModal = ref(false)
 const showForecastModal = ref(false)
-const selectedProduct = ref(null)
+const selectedProduct = ref<Product | null>(null)
 
 // Table headers
 const tableHeaders = [
-  { key: 'name', label: 'Product' },
-  { key: 'category', label: 'Category' },
-  { key: 'price', label: 'Price' },
-  { key: 'stock', label: 'Current Stock' },
-  { key: 'forecastedStock', label: 'Forecasted Stock' }
-]
+  { key: 'name' as const, label: 'Product' },
+  { key: 'category' as const, label: 'Category' },
+  { key: 'price' as const, label: 'Price' },
+  { key: 'stock' as const, label: 'Current Stock' },
+  { key: 'forecastedStock' as const, label: 'Forecasted Stock' }
+] as const
 
 // Computed properties
 const categories = computed(() => {
@@ -206,7 +207,7 @@ const filteredProducts = computed(() => {
     filtered = filtered.filter(
       product =>
         product.name.toLowerCase().includes(query) ||
-        product.sku?.toLowerCase().includes(query)
+        (product.sku?.toLowerCase().includes(query) ?? false)
     )
   }
 
@@ -218,9 +219,10 @@ const filteredProducts = computed(() => {
   // Apply stock filter
   if (stockFilter.value) {
     filtered = filtered.filter(product => {
+      const threshold = product.lowStockThreshold ?? 10
       switch (stockFilter.value) {
         case 'low':
-          return product.stock <= (product.lowStockThreshold || 10)
+          return product.stock <= threshold
         case 'out':
           return product.stock === 0
         case 'in':
@@ -232,22 +234,23 @@ const filteredProducts = computed(() => {
   }
 
   // Apply sorting
-  filtered.sort((a, b) => {
+  return [...filtered].sort((a, b) => {
     const aValue = a[sortKey.value]
     const bValue = b[sortKey.value]
     const modifier = sortOrder.value === 'asc' ? 1 : -1
 
-    if (typeof aValue === 'string') {
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
       return aValue.localeCompare(bValue) * modifier
     }
-    return (aValue - bValue) * modifier
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return (aValue - bValue) * modifier
+    }
+    return 0
   })
-
-  return filtered
 })
 
 // Methods
-const sortBy = (key: string) => {
+const sortBy = (key: keyof Product) => {
   if (sortKey.value === key) {
     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
   } else {
@@ -256,28 +259,24 @@ const sortBy = (key: string) => {
   }
 }
 
-const openUpdateModal = (product) => {
+const openUpdateModal = (product: Product) => {
   selectedProduct.value = { ...product }
   showUpdateModal.value = true
 }
 
-const openForecastModal = (product) => {
-  selectedProduct.value = product
+const openForecastModal = (product: Product) => {
+  selectedProduct.value = { ...product }
   showForecastModal.value = true
 }
 
-const updateStock = async () => {
-  if (selectedProduct.value) {
-    try {
-      await store.updateProductStock(
-        selectedProduct.value.id,
-        selectedProduct.value.stock
-      )
-      showUpdateModal.value = false
-    } catch (error) {
-      console.error('Failed to update stock:', error)
-    }
-  }
+const updateStock = () => {
+  if (!selectedProduct.value) return
+
+  store.updateProductStock(
+    selectedProduct.value.id,
+    selectedProduct.value.stock
+  )
+  showUpdateModal.value = false
 }
 
 onMounted(() => {

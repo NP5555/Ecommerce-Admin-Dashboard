@@ -139,7 +139,7 @@ const generateCategoryData = (products: Product[], salesData: SalesData[]): Cate
   const totalOrders = salesData.reduce((sum, data) => sum + data.orders, 0)
   
   // Distribute revenue and orders across categories
-  categoryMap.forEach((value, category) => {
+  categoryMap.forEach((value) => {
     value.revenue = totalRevenue * (0.1 + Math.random() * 0.2) // 10-30% of total revenue
     value.orders = Math.floor(totalOrders * (0.1 + Math.random() * 0.2)) // 10-30% of total orders
   })

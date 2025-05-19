@@ -129,7 +129,7 @@ const initializeCharts = () => {
     revenueChartInstance = new Chart(revenueChart.value, {
       type: 'line',
       data: {
-        labels: store.getRevenueLabels(selectedPeriod.value),
+        labels: store.getRevenueLabels(),
         datasets: generateRevenueDatasets()
       },
       options: {
@@ -153,7 +153,7 @@ const initializeCharts = () => {
           y: {
             beginAtZero: true,
             ticks: {
-              callback: (value) => `$${formatCurrency(value)}`
+              callback: (value: string | number) => `$${formatCurrency(Number(value))}`
             }
           }
         }
@@ -193,7 +193,7 @@ const initializeCharts = () => {
 
 const generateRevenueDatasets = () => {
   const datasets = []
-  const baseData = store.getRevenueData(selectedPeriod.value)
+  const baseData = store.getRevenueData()
   
   if (selectedCategories.value.length === 0) {
     datasets.push({
@@ -228,7 +228,7 @@ const getColorForIndex = (index: number) => {
 
 const updateCharts = () => {
   if (revenueChartInstance) {
-    revenueChartInstance.data.labels = store.getRevenueLabels(selectedPeriod.value)
+    revenueChartInstance.data.labels = store.getRevenueLabels()
     revenueChartInstance.data.datasets = generateRevenueDatasets()
     revenueChartInstance.update()
   }

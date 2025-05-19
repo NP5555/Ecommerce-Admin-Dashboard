@@ -1,20 +1,7 @@
 import { defineStore } from 'pinia'
 import { generateSampleData } from '../utils/sampleData'
 import { getApiUrl, configureApi } from '../config/api'
-
-interface Product {
-  id: string
-  name: string
-  category: string
-  description: string
-  price: number
-  stock: number
-  image?: string
-  status: 'In Stock' | 'Low Stock' | 'Out of Stock'
-  lowStockThreshold?: number
-  forecastedStock?: number
-  forecastedDays?: number
-}
+import type { Product } from '@/types'
 
 interface SalesData {
   date: string
@@ -28,13 +15,20 @@ interface CategoryData {
   orders: number
 }
 
+interface RevenueData {
+  date: string;
+  revenue: number;
+}
+
 export const useStore = defineStore('main', {
   state: () => ({
     products: [] as Product[],
     salesData: [] as SalesData[],
     categoryData: [] as CategoryData[],
     loading: false,
-    error: null as string | null
+    error: null as string | null,
+    revenueData: [] as RevenueData[],
+    revenueLabels: [] as string[]
   }),
 
   getters: {
@@ -138,14 +132,12 @@ export const useStore = defineStore('main', {
       return 'In Stock'
     },
 
-    getRevenueData(period: string) {
-      // Filter and aggregate data based on the selected period
-      return this.salesData.map(data => data.revenue)
+    getRevenueData(): number[] {
+      return this.revenueData.map(data => data.revenue)
     },
 
-    getRevenueLabels(period: string) {
-      // Return appropriate date labels based on the selected period
-      return this.salesData.map(data => data.date)
+    getRevenueLabels(): string[] {
+      return this.revenueData.map(data => data.date)
     },
 
     // Simulated real-time updates
